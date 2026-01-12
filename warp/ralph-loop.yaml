@@ -1,0 +1,32 @@
+# Warp Workflow: Ralph Loop
+#
+# Save this to ~/.warp/launch_configurations/ for quick access
+# Or use Warp's workflow import feature
+#
+# Usage in Warp:
+#   1. Open Command Palette (Cmd+P)
+#   2. Search "Ralph Loop"
+#   3. Select and run
+
+name: "Ralph Loop"
+command: "./.cursor/ralph-scripts/ralph-loop.sh"
+description: "Start Ralph Wiggum autonomous development loop with Claude Code"
+author: "Ralph Wiggum for Claude"
+tags:
+  - ai
+  - automation
+  - development
+
+arguments:
+  - name: iterations
+    description: "Maximum iterations before stopping"
+    default_value: "20"
+  - name: model
+    description: "Claude model to use (sonnet, opus, haiku)"
+    default_value: "sonnet"
+  - name: branch
+    description: "Create and work on this branch (optional)"
+    default_value: ""
+
+# Full command with arguments
+source_url: ""

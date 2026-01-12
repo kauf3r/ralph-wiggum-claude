@@ -1,0 +1,14 @@
+# Warp Workflow: Ralph Monitor
+#
+# Opens a split pane to monitor Ralph's activity log
+#
+# Usage: Run this in a second pane while ralph-loop runs in the first
+
+name: "Ralph Monitor"
+command: "tail -f .ralph/activity.log"
+description: "Monitor Ralph Wiggum activity log in real-time"
+author: "Ralph Wiggum for Claude"
+tags:
+  - ai
+  - monitoring
+  - logs
