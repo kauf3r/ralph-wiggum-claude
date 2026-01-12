@@ -25,11 +25,15 @@ WARN_THRESHOLD=150000
 ROTATE_THRESHOLD=180000
 
 # Tracking state - Claude gives us exact counts!
-TOTAL_INPUT_TOKENS=0
-TOTAL_OUTPUT_TOKENS=0
+# We track the LATEST reported usage (not cumulative) since Claude reports per-turn
+CURRENT_INPUT_TOKENS=0
+CURRENT_OUTPUT_TOKENS=0
 TOTAL_COST_USD=0
 TOOL_CALLS=0
 WARN_SENT=0
+
+# For context window, we care about input tokens (what's in context)
+# Output tokens don't count against context window
 
 # Gutter detection temp files (macOS bash 3.x compat)
 FAILURES_FILE=$(mktemp)
@@ -52,8 +56,8 @@ get_health_emoji() {
 log_activity() {
   local message="$1"
   local timestamp=$(date '+%H:%M:%S')
-  local total_tokens=$((TOTAL_INPUT_TOKENS + TOTAL_OUTPUT_TOKENS))
-  local emoji=$(get_health_emoji $total_tokens)
+  # For context window, input tokens are what matters
+  local emoji=$(get_health_emoji $CURRENT_INPUT_TOKENS)
 
   echo "[$timestamp] $emoji $message" >> "$RALPH_DIR/activity.log"
 }
@@ -66,12 +70,13 @@ log_error() {
 }
 
 log_token_status() {
-  local total_tokens=$((TOTAL_INPUT_TOKENS + TOTAL_OUTPUT_TOKENS))
-  local pct=$((total_tokens * 100 / ROTATE_THRESHOLD))
-  local emoji=$(get_health_emoji $total_tokens)
+  # Context window is determined by input tokens
+  local context_tokens=$CURRENT_INPUT_TOKENS
+  local pct=$((context_tokens * 100 / ROTATE_THRESHOLD))
+  local emoji=$(get_health_emoji $context_tokens)
   local timestamp=$(date '+%H:%M:%S')
 
-  local status_msg="TOKENS: $total_tokens / $ROTATE_THRESHOLD ($pct%)"
+  local status_msg="CONTEXT: $context_tokens / $ROTATE_THRESHOLD ($pct%)"
 
   if [[ $pct -ge 90 ]]; then
     status_msg="$status_msg - rotation imminent"
@@ -80,26 +85,27 @@ log_token_status() {
   fi
 
   local cost_str=""
-  if command -v bc &> /dev/null && [[ "$TOTAL_COST_USD" != "0" ]]; then
+  if [[ "$TOTAL_COST_USD" != "0" ]]; then
     cost_str=" cost:\$$TOTAL_COST_USD"
   fi
 
-  echo "[$timestamp] $emoji $status_msg [in:$TOTAL_INPUT_TOKENS out:$TOTAL_OUTPUT_TOKENS$cost_str]" >> "$RALPH_DIR/activity.log"
+  echo "[$timestamp] $emoji $status_msg [in:$CURRENT_INPUT_TOKENS out:$CURRENT_OUTPUT_TOKENS$cost_str]" >> "$RALPH_DIR/activity.log"
 }
 
 check_thresholds() {
-  local total_tokens=$((TOTAL_INPUT_TOKENS + TOTAL_OUTPUT_TOKENS))
+  # Context window is determined by input tokens
+  local context_tokens=$CURRENT_INPUT_TOKENS
 
   # Check rotation threshold
-  if [[ $total_tokens -ge $ROTATE_THRESHOLD ]]; then
-    log_activity "ROTATE: Token threshold reached ($total_tokens >= $ROTATE_THRESHOLD)"
+  if [[ $context_tokens -ge $ROTATE_THRESHOLD ]]; then
+    log_activity "ROTATE: Context threshold reached ($context_tokens >= $ROTATE_THRESHOLD)"
     echo "ROTATE" 2>/dev/null || true
     return
   fi
 
   # Check warning threshold
-  if [[ $total_tokens -ge $WARN_THRESHOLD ]] && [[ $WARN_SENT -eq 0 ]]; then
-    log_activity "WARN: Approaching token limit ($total_tokens >= $WARN_THRESHOLD)"
+  if [[ $context_tokens -ge $WARN_THRESHOLD ]] && [[ $WARN_SENT -eq 0 ]]; then
+    log_activity "WARN: Approaching context limit ($context_tokens >= $WARN_THRESHOLD)"
     WARN_SENT=1
     echo "WARN" 2>/dev/null || true
   fi
@@ -177,14 +183,18 @@ process_line() {
         fi
       fi
 
-      # Extract token usage from assistant message (Claude provides this!)
+      # Extract token usage from assistant message
+      # Claude reports: input_tokens (new) + cache_read (from cache) = total context
       local input_tokens=$(echo "$line" | jq -r '.message.usage.input_tokens // 0' 2>/dev/null) || input_tokens=0
       local output_tokens=$(echo "$line" | jq -r '.message.usage.output_tokens // 0' 2>/dev/null) || output_tokens=0
       local cache_read=$(echo "$line" | jq -r '.message.usage.cache_read_input_tokens // 0' 2>/dev/null) || cache_read=0
 
-      if [[ $input_tokens -gt 0 ]] || [[ $output_tokens -gt 0 ]]; then
-        TOTAL_INPUT_TOKENS=$((TOTAL_INPUT_TOKENS + input_tokens + cache_read))
-        TOTAL_OUTPUT_TOKENS=$((TOTAL_OUTPUT_TOKENS + output_tokens))
+      # REPLACE (not accumulate) - each message reports current context state
+      if [[ $input_tokens -gt 0 ]] || [[ $cache_read -gt 0 ]]; then
+        CURRENT_INPUT_TOKENS=$((input_tokens + cache_read))
+      fi
+      if [[ $output_tokens -gt 0 ]]; then
+        CURRENT_OUTPUT_TOKENS=$output_tokens
       fi
       ;;
 
@@ -238,15 +248,17 @@ process_line() {
 
       TOTAL_COST_USD="$cost"
 
-      # Get final token counts from modelUsage
-      local final_input=$(echo "$line" | jq -r '[.modelUsage[].inputTokens // 0, .modelUsage[].cacheReadInputTokens // 0, .modelUsage[].cacheCreationInputTokens // 0] | add' 2>/dev/null) || final_input=0
-      local final_output=$(echo "$line" | jq -r '[.modelUsage[].outputTokens // 0] | add' 2>/dev/null) || final_output=0
+      # Get final token counts from usage field (authoritative)
+      # Note: modelUsage includes cache_creation which isn't in context window
+      local final_input=$(echo "$line" | jq -r '.usage.input_tokens // 0' 2>/dev/null) || final_input=0
+      local final_cache=$(echo "$line" | jq -r '.usage.cache_read_input_tokens // 0' 2>/dev/null) || final_cache=0
+      local final_output=$(echo "$line" | jq -r '.usage.output_tokens // 0' 2>/dev/null) || final_output=0
 
-      if [[ $final_input -gt 0 ]]; then
-        TOTAL_INPUT_TOKENS=$final_input
+      if [[ $final_input -gt 0 ]] || [[ $final_cache -gt 0 ]]; then
+        CURRENT_INPUT_TOKENS=$((final_input + final_cache))
       fi
       if [[ $final_output -gt 0 ]]; then
-        TOTAL_OUTPUT_TOKENS=$final_output
+        CURRENT_OUTPUT_TOKENS=$final_output
       fi
 
       log_activity "SESSION END: ${duration}ms, cost=\$$cost"
