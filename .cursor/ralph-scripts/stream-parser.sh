@@ -242,24 +242,12 @@ process_line() {
       ;;
 
     "result")
-      # Final result - extract total cost and usage
+      # Final result - extract cost (DO NOT update token counts from here)
+      # The result.usage is cumulative billing info, not current context window
       local duration=$(echo "$line" | jq -r '.duration_ms // 0' 2>/dev/null) || duration=0
       local cost=$(echo "$line" | jq -r '.total_cost_usd // 0' 2>/dev/null) || cost=0
 
       TOTAL_COST_USD="$cost"
-
-      # Get final token counts from usage field (authoritative)
-      # Note: modelUsage includes cache_creation which isn't in context window
-      local final_input=$(echo "$line" | jq -r '.usage.input_tokens // 0' 2>/dev/null) || final_input=0
-      local final_cache=$(echo "$line" | jq -r '.usage.cache_read_input_tokens // 0' 2>/dev/null) || final_cache=0
-      local final_output=$(echo "$line" | jq -r '.usage.output_tokens // 0' 2>/dev/null) || final_output=0
-
-      if [[ $final_input -gt 0 ]] || [[ $final_cache -gt 0 ]]; then
-        CURRENT_INPUT_TOKENS=$((final_input + final_cache))
-      fi
-      if [[ $final_output -gt 0 ]]; then
-        CURRENT_OUTPUT_TOKENS=$final_output
-      fi
 
       log_activity "SESSION END: ${duration}ms, cost=\$$cost"
       log_token_status
