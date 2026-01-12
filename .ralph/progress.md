@@ -35,3 +35,14 @@
 
 ### 2026-01-12 14:33:02
 **Session 1 started** (model: sonnet)
+
+- Recreated `greet.js` with `greet(name)` function that returns "Hello, [name]!"
+- Recreated `test.js` with test that verifies `greet("World")` returns "Hello, World!"
+- Ran tests successfully - all pass
+- All criteria completed and marked in RALPH_TASK.md
+
+### 2026-01-12 14:33:45
+**Session 1 ended** - ✅ TASK COMPLETE
+
+### 2026-01-12 14:34:18
+**Session 1 ended** - ✅ TASK COMPLETE
