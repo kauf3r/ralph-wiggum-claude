@@ -4,7 +4,7 @@
 # Installs Ralph scripts into your project directory.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/ralph-wiggum-claude/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/kauf3r/ralph-wiggum-claude/main/install.sh | bash
 #
 # Or:
 #   ./install.sh [target-directory]
@@ -21,7 +21,7 @@ mkdir -p "$TARGET/.cursor/ralph-scripts"
 mkdir -p "$TARGET/.ralph"
 
 # Download scripts
-REPO_URL="https://raw.githubusercontent.com/YOUR_USERNAME/ralph-wiggum-claude/main"
+REPO_URL="https://raw.githubusercontent.com/kauf3r/ralph-wiggum-claude/main"
 
 if command -v curl &> /dev/null; then
   curl -fsSL "$REPO_URL/scripts/ralph-common.sh" -o "$TARGET/.cursor/ralph-scripts/ralph-common.sh"

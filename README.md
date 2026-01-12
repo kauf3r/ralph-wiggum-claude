@@ -30,12 +30,12 @@ The same prompt is fed repeatedly to Claude Code. Progress persists in **files a
 
 ```bash
 cd your-project
-curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/ralph-wiggum-claude/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/kauf3r/ralph-wiggum-claude/main/install.sh | bash
 ```
 
 Or clone and copy:
 ```bash
-git clone https://github.com/YOUR_USERNAME/ralph-wiggum-claude.git
+git clone https://github.com/kauf3r/ralph-wiggum-claude.git
 cp -r ralph-wiggum-claude/scripts your-project/.cursor/ralph-scripts
 cp ralph-wiggum-claude/templates/RALPH_TASK.template.md your-project/RALPH_TASK.md
 ```
