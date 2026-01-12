@@ -28,7 +28,6 @@ ROTATE_THRESHOLD=180000
 # We track the LATEST reported usage (not cumulative) since Claude reports per-turn
 CURRENT_INPUT_TOKENS=0
 CURRENT_OUTPUT_TOKENS=0
-TOTAL_COST_USD=0
 TOOL_CALLS=0
 WARN_SENT=0
 
@@ -84,12 +83,7 @@ log_token_status() {
     status_msg="$status_msg - approaching limit"
   fi
 
-  local cost_str=""
-  if [[ "$TOTAL_COST_USD" != "0" ]]; then
-    cost_str=" cost:\$$TOTAL_COST_USD"
-  fi
-
-  echo "[$timestamp] $emoji $status_msg [in:$CURRENT_INPUT_TOKENS out:$CURRENT_OUTPUT_TOKENS$cost_str]" >> "$RALPH_DIR/activity.log"
+  echo "[$timestamp] $emoji $status_msg [in:$CURRENT_INPUT_TOKENS out:$CURRENT_OUTPUT_TOKENS]" >> "$RALPH_DIR/activity.log"
 }
 
 check_thresholds() {
@@ -242,14 +236,10 @@ process_line() {
       ;;
 
     "result")
-      # Final result - extract cost (DO NOT update token counts from here)
-      # The result.usage is cumulative billing info, not current context window
+      # Final result - extract duration
       local duration=$(echo "$line" | jq -r '.duration_ms // 0' 2>/dev/null) || duration=0
-      local cost=$(echo "$line" | jq -r '.total_cost_usd // 0' 2>/dev/null) || cost=0
 
-      TOTAL_COST_USD="$cost"
-
-      log_activity "SESSION END: ${duration}ms, cost=\$$cost"
+      log_activity "SESSION END: ${duration}ms"
       log_token_status
       ;;
   esac
